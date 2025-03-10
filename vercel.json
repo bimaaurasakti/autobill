@@ -1,13 +1,8 @@
 {
-    "builds": [
-        {
-            "src": "package.json",
-            "use": "@vercel/next"
-        }
-    ],
-    "functions": {
-        "api/schedules": {
-            "schedule": "0 14 10 * *"
-        }
-    }
+	"crons": [
+		{
+			"path": "/api/cron",
+			"schedule": "* * * * *"
+		}
+	]
 }
