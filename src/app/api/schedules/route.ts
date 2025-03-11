@@ -2,31 +2,40 @@
 import { BillEmailType } from "@/types/billEmailType";
 import { NextResponse } from "next/server";
 import { createAdminClient } from "./server";
-import { render } from "@react-email/render";
-import BillEmail from "@/components/BillEmail/Index";
 import nodemailer from 'nodemailer';
 import rateLimit from "express-rate-limit";
-import { NextApiRequest, NextApiResponse } from "next";
+import { renderBillEmail } from "@/components/BillEmail/RenderBillEmail";
 
+// Inisialisasi rate limiter
 const limiter = rateLimit({
     windowMs: 1 * 60 * 1000, // 1 menit
     max: 5, // Maksimal 5 request per menit
     message: { error: "Too many requests, please try again later." },
 });
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-    try {
-        await new Promise((resolve) => {
-            limiter(req as any, res as any, () => resolve(null));
-        });
-        res.status(200).json({ message: "Access Granted" });
-    } catch {
-        res.status(429).json({ error: "Too many requests" });
-    }
+async function applyRateLimit(req: Request) {
+    return new Promise<void>((resolve, reject) => {
+        // Karena rateLimit dirancang untuk Express, kita membuat objek tiruan untuk response
+        const fakeReq: any = req;
+        const fakeRes: any = {
+            status: (code: number) => ({
+            json: () => {
+                if (code === 429) {
+                    reject(new Error("Too many requests"));
+                } else {
+                    resolve();
+                }
+            },
+            }),
+        };
+        limiter(fakeReq, fakeRes, () => resolve());
+    });
 }
 
-export async function POST() {
+export async function POST(request: Request) {
     try {
+        await applyRateLimit(request);
+
         const now = new Date().toISOString();
         const supabase = await createAdminClient();
     
@@ -55,10 +64,7 @@ export async function POST() {
                     amount: formattedAmount,
                     due_date: formattedDate
                 }
-                const html = await render(
-                    <BillEmail data={data} />, 
-                    { pretty: true }
-                );
+                const html = await renderBillEmail(data);
 
                 sendEmailMessage({
                     id: schedule.id,
